@@ -3,6 +3,3 @@ pandas
 pyrebase4
 firebase-admin
 
-admin@rtvpinas.com
-- `Placa: GSJ1492`
-  - `Chasis: KNADN`
