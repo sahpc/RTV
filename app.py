@@ -95,21 +95,50 @@ with tabs[0]:
                 st.info("No se encontraron registros para los datos ingresados.")
 
 # --- TAB 2: ADMINISTRACIÓN ---
+# --- TAB 2: ADMINISTRACIÓN ---
 if len(tabs) > 1:
     with tabs[1]:
-        file = st.file_uploader("Subir CSV", type="csv")
+        st.subheader("Subir Nueva Base de Datos")
+        file = st.file_uploader("Seleccione el archivo CSV", type="csv")
+        
         if file and st.button("Cargar datos"):
-            df = pd.read_csv(file, sep=';', encoding='latin1')
+            # Leer el archivo (recuerda ajustar o quitar el skiprows=1 según limpiaste tu Excel)
+            df = pd.read_csv(file, sep=';', encoding='latin1', skiprows=1) 
             batch = db.batch()
             
+            # 1. Guardar los vehículos
             for r in df.to_dict('records'): 
-                # Usar el VIN como ID del documento para evitar duplicados en la base de datos
                 vin_id = str(r.get('VIN')).strip()
-                doc_ref = db.collection('inspecciones').document(vin_id) if vin_id else db.collection('inspecciones').document()
-                batch.set(doc_ref, r)
+                doc_ref = db.collection('inspecciones').document(vin_id) if vin_id and vin_id.lower() != 'nan' else db.collection('inspecciones').document()
+                batch.set(doc_ref, r, merge=True)
                 
             batch.commit()
-            st.success("✅ Registros cargados y actualizados correctamente.")
+            
+            # 2. GUARDAR EL REGISTRO DE QUIÉN SUBIÓ EL ARCHIVO (Auditoría)
+            registro_auditoria = {
+                'fecha_hora': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'usuario': st.session_state.user,
+                'nombre_archivo': file.name,
+                'cantidad_vehiculos': len(df)
+            }
+            db.collection('historial_cargas').add(registro_auditoria)
+            
+            st.success("✅ Registros cargados y guardados en el historial de auditoría.")
+
+        # --- MOSTRAR EL HISTORIAL SOLO AL ADMIN ---
+        st.markdown("---")
+        st.subheader("🕒 Historial de Archivos Subidos")
+        
+        # Leer el historial desde Firebase, ordenado por fecha (el más nuevo primero)
+        historial_query = db.collection('historial_cargas').order_by('fecha_hora', direction=firestore.Query.DESCENDING).limit(10)
+        historial_datos = [doc.to_dict() for doc in historial_query.stream()]
+        
+        if historial_datos:
+            # Mostramos el historial en una tabla bonita de Pandas
+            df_historial = pd.DataFrame(historial_datos)
+            st.dataframe(df_historial, use_container_width=True)
+        else:
+            st.info("Aún no hay registros de archivos subidos.")
 
 # --- TAB 3: GESTIÓN (SOLO SUPER ADMIN) ---
 if len(tabs) > 2:
