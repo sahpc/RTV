@@ -14,9 +14,15 @@ with open('config.json') as f:
 firebase = pyrebase.initialize_app(config)
 auth = firebase.auth()
 
-if not firebase_admin._apps:
+# --- INICIALIZACIÓN SEGURA DE FIREBASE ADMIN ---
+try:
+    # Intenta usar la conexión si ya existe en la memoria de Streamlit
+    firebase_admin.get_app()
+except ValueError:
+    # Si no existe, entonces la crea por primera vez
     cred = credentials.Certificate("serviceAccountKey.json")
     firebase_admin.initialize_app(cred)
+
 db = firestore.client()
 
 # --- FUNCIONES ---
