@@ -71,14 +71,28 @@ with tabs[0]:
     col_a, col_b = st.columns(2)
     placa = col_a.text_input("Placa")
     vin = col_b.text_input("VIN / Chasis")
+    
     if st.button("Consultar"):
         if validar_campos_estrictos(placa, vin):
             query = db.collection('inspecciones').where('VEHICULO', '==', placa.upper()).where('VIN', '==', vin.upper())
             res = [doc.to_dict() for doc in query.stream()]
+            
             if res:
+                st.markdown("---")
+                st.markdown("### 📋 Resultados de la Inspección")
                 for r in res:
-                    st.success(f"Resultado: {r.get('RESULTADO TECNICO')}")
-            else: st.info("No encontrado.")
+                    st.info(f"**Vehículo:** {r.get('MARCA', 'N/A')} {r.get('MODELO', 'N/A')} | **Placa:** {r.get('VEHICULO', 'N/A')}")
+                    
+                    # Colores dinámicos según el resultado
+                    resultado = r.get('RESULTADO TECNICO', 'N/A')
+                    if "Aproba" in resultado:
+                        st.success(f"**Estado:** {resultado}")
+                    elif "Condicion" in resultado:
+                        st.warning(f"**Estado:** {resultado}")
+                    else:
+                        st.error(f"**Estado:** {resultado}")
+            else: 
+                st.info("No se encontraron registros para los datos ingresados.")
 
 # --- TAB 2: ADMINISTRACIÓN ---
 if len(tabs) > 1:
@@ -87,9 +101,15 @@ if len(tabs) > 1:
         if file and st.button("Cargar datos"):
             df = pd.read_csv(file, sep=';', encoding='latin1')
             batch = db.batch()
-            for r in df.to_dict('records'): batch.set(db.collection('inspecciones').document(), r)
+            
+            for r in df.to_dict('records'): 
+                # Usar el VIN como ID del documento para evitar duplicados en la base de datos
+                vin_id = str(r.get('VIN')).strip()
+                doc_ref = db.collection('inspecciones').document(vin_id) if vin_id else db.collection('inspecciones').document()
+                batch.set(doc_ref, r)
+                
             batch.commit()
-            st.success("Registros cargados.")
+            st.success("✅ Registros cargados y actualizados correctamente.")
 
 # --- TAB 3: GESTIÓN (SOLO SUPER ADMIN) ---
 if len(tabs) > 2:
